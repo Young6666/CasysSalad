@@ -3,8 +3,12 @@ from discord.ext import commands, tasks
 from discord import ui
 import datetime
 import asyncio
-import json # json 모듈 임포트
+import json
 import os
+from zoneinfo import ZoneInfo
+
+# KST
+KST = ZoneInfo("Asia/Seoul")
 
 # ===========================
 # 설정 영역 (파일에서 로드)
@@ -73,17 +77,32 @@ class PersistentOrderView(ui.View):
     @ui.button(label="ℹ️ 메뉴판/도움말", style=discord.ButtonStyle.secondary, custom_id="help_btn")
     async def help_button(self, interaction: discord.Interaction, button: ui.Button):
         # 도움말 메시지 (ephemeral=True로 본인에게만 보임)
-        help_text = """
-        **[ 🥗 샐러드 주문 봇 도움말 ]**
+        # 1. 이미지 파일 경로 설정 (봇과 같은 폴더에 있다고 가정)
+        image_path = "menu.png" 
         
-        1. **'주문하기'** 버튼을 눌러 드실 메뉴를 입력하세요.
-        2. 메뉴를 바꾸고 싶으면 다시 버튼을 눌러 새로 입력하면 덮어씌워집니다.
-        3. 주문 현황은 실시간으로 이 메시지에 업데이트됩니다.
-        4. **매일 낮 12시 30분**에 주문 내역이 자동으로 초기화됩니다.
-        
-        (추후 여기에 실제 메뉴판 이미지나 링크를 추가할 수 있습니다.)
-        """
-        await interaction.response.send_message(help_text, ephemeral=True)
+        try:
+            # 2. 디스코드에 보낼 파일 객체 생성
+            # filename은 디스코드에 떴을 때 보일 이름입니다.
+            file = discord.File(image_path, filename="menu.jpg")
+            
+            help_text = """
+            **[ 🥗 샐러드 주문 봇 도움말 ]**
+            
+            1. '주문하기' 버튼을 눌러 드실 메뉴를 입력하세요.
+            2. 메뉴를 바꾸고 싶으면 다시 버튼을 눌러 새로 입력하면 덮어씌워집니다.
+            3. 주문 현황은 실시간으로 이 메시지에 업데이트됩니다.
+            4. 매일 낮 12시 30분에 주문 내역이 자동으로 초기화됩니다.
+            
+            https://cafe.naver.com/f-e/cafes/26398667/menus/19
+            https://cafe.naver.com/f-e/cafes/26398667/menus/39
+            """
+            
+            # 3. 메시지와 함께 파일 전송 (ephemeral=True로 나에게만 보임)
+            await interaction.response.send_message(content=help_text, file=file, ephemeral=True)
+            
+        except FileNotFoundError:
+            # 이미지가 없을 경우 에러 처리
+            await interaction.response.send_message("❌ 서버에 메뉴판 이미지 파일(menu.jpg)이 없습니다.", ephemeral=True)
 
 
 # --- 2. 핵심 로직 함수 ---
@@ -106,7 +125,7 @@ async def update_dashboard_UI():
             order_list_str += f"👤 **{user}**: {menu}\n"
         embed.add_field(name=f"현재 총 {len(current_orders)}명 주문 중", value=order_list_str, inline=False)
     
-    now_time = datetime.datetime.now().strftime("%H:%M")
+    now_time = datetime.datetime.now(KST).strftime("%H:%M")
     embed.set_footer(text=f"마지막 업데이트: {now_time} | 매일 12:30 초기화")
 
     # 기존 메시지를 수정(edit)하여 업데이트
@@ -146,7 +165,7 @@ async def start_dashboard(ctx):
 @tasks.loop(minutes=1)
 async def scheduled_flush_task():
     # 현재 서버 시간 기준 (필요시 timezone 설정 추가 가능)
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(KST)
     
     # 매일 12시 30분에 실행
     if now.hour == 12 and now.minute == 30:
