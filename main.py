@@ -142,7 +142,16 @@ async def update_dashboard_UI():
     embed = discord.Embed(title="🥗 오늘의 샐러드 주문 현황", description="아래 버튼을 눌러 주문을 입력해주세요.", color=0x57F287)
     # 이전에 생성한 샐러드 이미지 URL을 여기에 넣으면 더 예쁩니다.
     # embed.set_thumbnail(url="YOUR_IMAGE_URL") 
-    
+    if sold_out_items:
+        # 품절된 메뉴들을 쉼표(,)로 연결
+        sold_out_str = ", ".join(sorted(sold_out_items)) # 정렬해서 보기 좋게
+        
+        # ```diff ... - 텍스트``` 문법을 사용하면 디스코드에서 빨간색으로 보입니다.
+        embed.add_field(
+            name="🚨 현재 품절된 메뉴 (주문 불가)", 
+            value=f"```diff\n- {sold_out_str}\n```", 
+            inline=False
+        )
     if not current_orders:
         embed.add_field(name="현재 주문 내역", value="아직 주문이 없습니다. 텅 비었어요! 🥲", inline=False)
     else:
