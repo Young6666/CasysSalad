@@ -35,6 +35,7 @@ except KeyError as e:
 
 # 전역 변수 (데이터 저장용)
 current_orders = {} # { '사용자닉네임': '메뉴명' } 형태의 딕셔너리
+sold_out_items = set()
 dashboard_message = None # 주문 현황판 메시지 객체를 저장할 변수
 
 # 봇 권한 설정
@@ -44,6 +45,27 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 
 # --- 1. UI 컴포넌트 정의 ---
+# [추가] 품절 메뉴 관리 모달
+class SoldOutModal(ui.Modal, title='🚫 품절 메뉴 관리'):
+    menu_input = ui.TextInput(label='품절 또는 해제할 메뉴명', placeholder='예: 연어 (입력 시 상태가 토글됩니다)')
+
+    async def on_submit(self, interaction: discord.Interaction):
+        menu_name = self.menu_input.value.strip()
+        global sold_out_items
+        
+        # 토글 로직: 이미 품절이면 해제, 아니면 품절 등록
+        if menu_name in sold_out_items:
+            sold_out_items.remove(menu_name)
+            msg = f"✅ **'{menu_name}'** 품절이 해제되었습니다."
+        else:
+            sold_out_items.add(menu_name)
+            msg = f"🚫 **'{menu_name}'** 품절 처리되었습니다."
+            
+        # 결과 알림 (나에게만 보임)
+        await interaction.response.send_message(msg, ephemeral=True)
+        
+        # 대시보드 업데이트
+        await update_dashboard_UI()
 
 # 메뉴 입력 모달 (팝업창)
 class OrderModal(ui.Modal, title='🥗 점심 메뉴 입력'):
@@ -94,7 +116,6 @@ class PersistentOrderView(ui.View):
             4. 매일 낮 12시 30분에 주문 내역이 자동으로 초기화됩니다.
             
             https://cafe.naver.com/f-e/cafes/26398667/menus/19
-            https://cafe.naver.com/f-e/cafes/26398667/menus/39
             """
             
             # 3. 메시지와 함께 파일 전송 (ephemeral=True로 나에게만 보임)
@@ -103,7 +124,12 @@ class PersistentOrderView(ui.View):
         except FileNotFoundError:
             # 이미지가 없을 경우 에러 처리
             await interaction.response.send_message("❌ 서버에 메뉴판 이미지 파일(menu.jpg)이 없습니다.", ephemeral=True)
-
+    
+    # 3. [추가] 품절 관리 버튼 (빨간색 버튼)
+    @ui.button(label="관리자: 품절 등록", style=discord.ButtonStyle.danger, custom_id="sold_out_btn", emoji="🚫")
+    async def sold_out_button(self, interaction: discord.Interaction, button: ui.Button):
+        # 품절 모달 띄우기
+        await interaction.response.send_modal(SoldOutModal())
 
 # --- 2. 핵심 로직 함수 ---
 
